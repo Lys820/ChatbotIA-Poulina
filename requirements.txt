@@ -1,0 +1,12 @@
+anthropic 
+qdrant-client 
+sentence-transformers 
+pandas
+python-dotenv 
+tqdm -q
+langchain-mistralai
+numpy
+os 
+json
+uuid
+pathlib
