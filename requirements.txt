@@ -3,10 +3,8 @@ qdrant-client
 sentence-transformers 
 pandas
 python-dotenv 
-tqdm -q
-langchain-mistralai
+tqdm
+langchain_mistralai
+langchain_core
 numpy
-os 
-json
-uuid
-pathlib
+ipywidgets
