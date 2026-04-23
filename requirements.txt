@@ -1,5 +1,5 @@
 anthropic 
-qdrant-client 
+chromadb
 sentence-transformers 
 pandas
 python-dotenv 
