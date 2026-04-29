@@ -8,3 +8,5 @@ langchain_mistralai
 langchain_core
 numpy
 ipywidgets
+scikit-learn 
+joblib 

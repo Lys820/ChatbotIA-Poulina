@@ -3,6 +3,10 @@
 *.env
 *.csv
 *.pkl
+*.bin
+*.pickle
+*.log
+*.sqlite3
 
 # Ada Library Information
 *.ali
