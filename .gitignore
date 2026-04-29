@@ -2,6 +2,7 @@
 *.o
 *.env
 *.csv
+*.pkl
 
 # Ada Library Information
 *.ali
