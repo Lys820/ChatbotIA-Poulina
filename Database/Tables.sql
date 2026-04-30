@@ -1,5 +1,5 @@
 -- ============================================================
--- BASE DE DONNÉES POULINA - VERSION ORACLE SQL CORRIGÉE
+-- BASE DE DONNÉES POULINA - VERSION ORACLE SQL 
 -- ============================================================
 -- Corrections principales :
 -- 1. SERIAL remplacé par GENERATED AS IDENTITY
@@ -259,9 +259,3 @@ CREATE TABLE stat_laborantin (
     CONSTRAINT fk_stat_type FOREIGN KEY (id_type_analyse)
         REFERENCES type_analyse(id_type_analyse)
 );
-
--- ============================================================
--- FIN
--- ============================================================
-
-
