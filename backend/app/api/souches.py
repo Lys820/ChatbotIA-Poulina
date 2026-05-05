@@ -28,8 +28,13 @@ class SouchePredictRequest(BaseModel):
 @router.post("/souches/predict")
 async def predict_souche(req: SouchePredictRequest):
     """Prédiction directe de souche via Random Forest (sans chat)."""
-    if not model_registry._souche_model:
-        return {"error": "Modèle souche non entraîné. Upload CSV d'abord."}, 400
+    try:
+        if not model_registry._souche_model:
+            return {"error": "Modèle souche non entraîné. Upload CSV d'abord."}, 400
 
-    result = model_registry.predict_souche(req.dict())
-    return result
+        result = model_registry.predict_souche(req.dict())
+        return result
+    except Exception as e:
+        import logging
+        logging.error(f"Souche predict error: {e}", exc_info=True)
+        return {"error": str(e), "type": type(e).__name__}, 500

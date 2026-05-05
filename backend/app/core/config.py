@@ -8,10 +8,9 @@ from typing import Literal
 
 class Settings(BaseSettings):
     # ── LLM ──────────────────────────────────────────────────────────────
-    LLM_PROVIDER: Literal["claude", "mistral", "openai"] = "claude"
-    ANTHROPIC_API_KEY: str = ""
-    MISTRAL_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""
+    LLM_PROVIDER: Literal["claude", "mistral", "openai"] = "mistral"
+    # charge depuis .env : LLM_PROVIDER=claude ou mistral ou openai
+    
 
     # ── ML Model ─────────────────────────────────────────────────────────
     # Modèle interchangeable sans toucher au code métier
@@ -21,7 +20,7 @@ class Settings(BaseSettings):
     # ── Oracle DB ────────────────────────────────────────────────────────
     ORACLE_DSN: str = "localhost:1521/poulina"
     ORACLE_USER: str = "poulina"
-    ORACLE_PASSWORD: str = ""
+    ORACLE_PASSWORD: str = "$iutinfo"
 
     # ── CSV (upload via API) ──────────────────────────────────────────────
     # Plus de chemins locaux : les CSV arrivent via l'endpoint /api/v1/analyses/upload

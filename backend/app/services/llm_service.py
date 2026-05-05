@@ -76,22 +76,29 @@ class ClaudeLLM(AbstractLLM):
 
 class MistralLLM(AbstractLLM):
     def __init__(self, api_key: str, model: str = "mistral-large-latest"):
-        from mistralai import Mistral
-        self._client = Mistral(api_key=api_key)
-        self._model = model
+        try:
+            from mistralai.client import MistralClient
+            self._client = MistralClient(api_key=api_key)
+            self._model = model
+            self._available = True
+        except ImportError:
+            log.warning("Mistral not available, will use fallback")
+            self._available = False
 
     @property
     def provider(self) -> str:
-        return f"Mistral ({self._model})"
+        return f"Mistral ({self._model})" if self._available else "Mistral (unavailable)"
 
     async def generate(self, user_message: str, context: str) -> str:
-        from mistralai.models import UserMessage, SystemMessage
+        if not self._available:
+            raise RuntimeError("Mistral not installed")
+        from mistralai.models import ChatMessage
         full_user = f"Contexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
-        resp = await self._client.chat.complete_async(
+        resp = self._client.chat(
             model=self._model,
             messages=[
-                SystemMessage(content=SYSTEM_PROMPT),
-                UserMessage(content=full_user),
+                ChatMessage(role="system", content=SYSTEM_PROMPT),
+                ChatMessage(role="user", content=full_user),
             ],
         )
         return resp.choices[0].message.content
