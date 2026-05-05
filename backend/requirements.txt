@@ -5,9 +5,9 @@ pydantic-settings
 pandas
 numpy
 scikit-learn
-anthropic
 mistralai
 openai
+google-genai
 python-dotenv
 
 # Optional ML

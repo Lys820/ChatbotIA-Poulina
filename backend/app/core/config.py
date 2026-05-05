@@ -7,8 +7,9 @@ from typing import Literal
 
 
 class Settings(BaseSettings):
+    
     # ── LLM ──────────────────────────────────────────────────────────────
-    LLM_PROVIDER: Literal["claude", "mistral", "openai"] = "mistral"
+    LLM_PROVIDER: Literal["claude", "mistral", "openai", "genai"] = ""
     # charge depuis .env : LLM_PROVIDER=claude ou mistral ou openai
     
 
@@ -18,9 +19,9 @@ class Settings(BaseSettings):
     # "auto" = teste plusieurs modèles et garde le meilleur (AutoML léger)
 
     # ── Oracle DB ────────────────────────────────────────────────────────
-    ORACLE_DSN: str = "localhost:1521/poulina"
-    ORACLE_USER: str = "poulina"
-    ORACLE_PASSWORD: str = "$iutinfo"
+    ORACLE_DSN: str = ""
+    ORACLE_USER: str = ""
+    ORACLE_PASSWORD: str = ""
 
     # ── CSV (upload via API) ──────────────────────────────────────────────
     # Plus de chemins locaux : les CSV arrivent via l'endpoint /api/v1/analyses/upload
@@ -39,7 +40,8 @@ class Settings(BaseSettings):
 
     # ── Sécurité ──────────────────────────────────────────────────────────
     API_KEY_HEADER: str = "X-Poulina-Key"
-    API_KEY: str = ""  # vide = pas d'auth (dev), obligatoire en prod
+    GENAI_API_KEY: str = ""  # vide = pas d'auth (dev), obligatoire en prod
+    #MISTRAL_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
