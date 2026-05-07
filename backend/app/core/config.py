@@ -40,7 +40,8 @@ class Settings(BaseSettings):
 
     # ── Sécurité ──────────────────────────────────────────────────────────
     API_KEY_HEADER: str = "X-Poulina-Key"
-    GENAI_API_KEY: str = ""  # vide = pas d'auth (dev), obligatoire en prod
+    ANTHROPIC_API_KEY: str = ""  # vide = pas d'auth (dev), obligatoire en prod
+    #GENAI_API_KEY: str = ""  # vide = pas d'auth (dev), obligatoire en prod
     #MISTRAL_API_KEY: str = ""
 
     class Config:
