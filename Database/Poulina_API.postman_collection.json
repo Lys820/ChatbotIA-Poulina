@@ -1,0 +1,506 @@
+{
+  "info": {
+    "name": "Poulina Chatbot IA",
+    "description": "Collection complète pour tester l'API Poulina – RAG + ML + LLM",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000/api/v1", "type": "string" }
+  ],
+  "item": [
+
+    {
+      "name": "🟢 Health & Status",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/health",
+            "description": "Vérifie que le serveur tourne. Retourne version, provider LLM, méthode embedding."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('status ok', () => pm.expect(pm.response.json().status).to.eql('ok'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Status détaillé",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/status",
+            "description": "État complet : RAG ready, ML ready, modèles entraînés, dernière MAJ."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Champs présents', () => {",
+                  "  pm.expect(json).to.have.property('rag_ready');",
+                  "  pm.expect(json).to.have.property('ml_ready');",
+                  "  pm.expect(json).to.have.property('ml_models');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "📂 Entraînement",
+      "item": [
+        {
+          "name": "Train depuis Oracle",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/analyses/train-from-oracle",
+            "description": "Connexion Oracle → récupère les données → entraîne ML + RAG.\nPrérequis : ORACLE_DSN, ORACLE_USER, ORACLE_PASSWORD dans .env"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status trained_from_oracle', () => pm.expect(json.status).to.eql('trained_from_oracle'));",
+                  "pm.test('Analyses indexées > 0', () => pm.expect(json.analyses.docs).to.be.above(0));",
+                  "pm.test('Labos indexés > 0', () => pm.expect(json.labos.docs).to.be.above(0));",
+                  "pm.collectionVariables.set('rag_ready', true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload CSV (analyses + labos)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/analyses/upload",
+            "description": "Upload 2 fichiers CSV et réentraîne ML + RAG à chaud.\nBody : form-data avec file_analyses et file_labos.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file_analyses",
+                  "type": "file",
+                  "description": "CSV analyses (colonnes : id_centre, meilleure_souche, conforme, etc.)"
+                },
+                {
+                  "key": "file_labos",
+                  "type": "file",
+                  "description": "CSV labos (colonnes : id_labo, nom_laboratoire, score_global, etc.)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status trained', () => pm.expect(json.status).to.eql('trained'));",
+                  "pm.test('Analyses indexées > 0', () => pm.expect(json.analyses.docs).to.be.above(0));",
+                  "pm.test('Labos indexés > 0', () => pm.expect(json.labos.docs).to.be.above(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "name": "💬 Chat",
+      "item": [
+        {
+          "name": "Question simple – souche par centre",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Quelle est la meilleure souche pour un élevage poulet chair à Bizerte ?\"\n}"
+            },
+            "description": "Question en langage naturel. Le RAG récupère le contexte et le LLM génère la réponse."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Réponse non vide', () => pm.expect(json.answer).to.be.a('string').and.not.empty);",
+                  "pm.test('Model utilisé présent', () => pm.expect(json.model_used).to.be.a('string'));",
+                  "pm.test('Temps exécution présent', () => pm.expect(json.execution_time_ms).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Question maladie critique",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Y a-t-il des centres atteints de Salmonelle ou Newcastle en ce moment ? Qui pourrait être contaminé ?\"\n}"
+            },
+            "description": "Doit déclencher une alerte explicite en début de réponse."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Réponse non vide', () => pm.expect(pm.response.json().answer).to.not.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Question laboratoire urgent",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Quel est le meilleur laboratoire disponible en urgence pour une analyse Salmonelle à Sfax ?\"\n}"
+            },
+            "description": "Routing automatique vers la collection labos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Labos récupérés', () => pm.expect(json.retrieved_labos).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat avec prédiction ML souche",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Quelle souche recommandes-tu pour ce profil d'élevage ?\",\n  \"predict_souche\": {\n    \"type_production\": \"Poulet de chair\",\n    \"biosecurite_score\": 9.0,\n    \"taux_mortalite\": 2.0,\n    \"temperature_moyenne\": 28,\n    \"humidite\": 55,\n    \"fertilite_visee\": 94,\n    \"capacite\": 15000,\n    \"surface_m2\": 800,\n    \"experience_equipe\": 8,\n    \"distance_labo\": 10,\n    \"budget\": 80000,\n    \"saison\": \"Ete\",\n    \"demande_marche\": \"Élevé\",\n    \"cout_aliment\": 5.2\n  }\n}"
+            },
+            "description": "Chat + prédiction Random Forest. Retourne souche_prediction avec confiance %."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Prédiction souche présente', () => pm.expect(json.souche_prediction).to.not.be.null);",
+                  "if(json.souche_prediction) {",
+                  "  pm.test('Confiance > 0', () => pm.expect(json.souche_prediction.confiance_pct).to.be.above(0));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Chat filtré par centre",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Quel est le taux de conformité de ce centre et y a-t-il des alertes ?\",\n  \"filtre_centre\": \"1\"\n}"
+            },
+            "description": "Résultats filtrés sur un centre précis (id_centre=1)."
+          }
+        },
+        {
+          "name": "Chat filtré par ville",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Quel laboratoire proche de Tunis recommandes-tu ?\",\n  \"filtre_ville\": \"Tunis\",\n  \"force_collection\": \"labos\"\n}"
+            },
+            "description": "Force la collection labos et filtre par ville."
+          }
+        },
+        {
+          "name": "Hors sujet (doit refuser)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Quelle est la capitale de la France ?\"\n}"
+            },
+            "description": "Doit répondre exactement : 'Je ne peux pas répondre à cette question car elle est hors de mon domaine.'"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Réponse hors sujet', () => {",
+                  "  const answer = pm.response.json().answer.toLowerCase();",
+                  "  pm.expect(answer).to.include('hors');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Fréquence analyses si maladie",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"À quelle fréquence faut-il faire des analyses si Salmonelle est détectée dans un centre ?\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Coût changement de souche",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Quel est le coût estimé pour passer de Ross 308 à Cobb 500 dans un bâtiment de 15 000 têtes ?\"\n}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🧬 Souches",
+      "item": [
+        {
+          "name": "Prédire souche – Poulet chair",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/souches/predict",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type_production\": \"Poulet de chair\",\n  \"biosecurite_score\": 9.0,\n  \"taux_mortalite\": 2.0,\n  \"temperature_moyenne\": 28,\n  \"humidite\": 55,\n  \"fertilite_visee\": 94,\n  \"capacite\": 15000,\n  \"surface_m2\": 800,\n  \"experience_equipe\": 8,\n  \"distance_labo\": 10,\n  \"budget\": 80000,\n  \"saison\": \"Ete\",\n  \"demande_marche\": \"Élevé\",\n  \"cout_aliment\": 5.2\n}"
+            },
+            "description": "Prédiction directe via Random Forest sans passer par le chat."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Souche retournée', () => pm.expect(json.souche).to.be.a('string').and.not.empty);",
+                  "pm.test('Confiance retournée', () => pm.expect(json.confiance_pct).to.be.a('number').and.above(0));",
+                  "pm.test('Modèle retourné', () => pm.expect(json.model).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prédire souche – Oeuf",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/souches/predict",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type_production\": \"Oeuf\",\n  \"biosecurite_score\": 8.0,\n  \"taux_mortalite\": 1.5,\n  \"temperature_moyenne\": 26,\n  \"humidite\": 60,\n  \"fertilite_visee\": 96,\n  \"capacite\": 10000,\n  \"surface_m2\": 500,\n  \"experience_equipe\": 6,\n  \"distance_labo\": 8,\n  \"budget\": 50000,\n  \"saison\": \"Hiver\",\n  \"demande_marche\": \"Moyen\",\n  \"cout_aliment\": 4.8\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Souche présente', () => pm.expect(pm.response.json().souche).to.not.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Prédire souche – Dinde",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/souches/predict",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type_production\": \"Dinde\",\n  \"biosecurite_score\": 7.0,\n  \"taux_mortalite\": 4.0,\n  \"temperature_moyenne\": 25,\n  \"humidite\": 58,\n  \"fertilite_visee\": 88,\n  \"capacite\": 8000,\n  \"surface_m2\": 600,\n  \"experience_equipe\": 3,\n  \"distance_labo\": 20,\n  \"budget\": 35000,\n  \"saison\": \"Automne\",\n  \"demande_marche\": \"Bas\",\n  \"cout_aliment\": 6.0\n}"
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "🔬 Laboratoires",
+      "item": [
+        {
+          "name": "Recommander labos – tous",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/labos/recommend",
+              "host": ["{{base_url}}"],
+              "path": ["labos", "recommend"]
+            },
+            "description": "Retourne les 5 meilleurs labos sans filtre."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Labos présents', () => pm.expect(pm.response.json().labos).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recommander labos – urgence",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/labos/recommend?urgence=true",
+              "host": ["{{base_url}}"],
+              "path": ["labos", "recommend"],
+              "query": [{ "key": "urgence", "value": "true" }]
+            },
+            "description": "Filtre sur accepte_urgence=1, trié par délai urgence."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Labos urgence présents', () => pm.expect(pm.response.json().labos).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Recommander labos – Tunis urgence",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/labos/recommend?urgence=true&ville=Tunis",
+              "host": ["{{base_url}}"],
+              "path": ["labos", "recommend"],
+              "query": [
+                { "key": "urgence", "value": "true" },
+                { "key": "ville", "value": "Tunis" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Recommander labos – Sfax",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/labos/recommend?ville=Sfax&max_delai_jours=5",
+              "host": ["{{base_url}}"],
+              "path": ["labos", "recommend"],
+              "query": [
+                { "key": "ville", "value": "Sfax" },
+                { "key": "max_delai_jours", "value": "5" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+
+    {
+      "name": "⚠️ Cas limites",
+      "item": [
+        {
+          "name": "Chat – RAG non initialisé",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/chat",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Test avant chargement des données\"\n}"
+            },
+            "description": "Si /train-from-oracle n'a pas été appelé, doit retourner un message d'erreur propre."
+          }
+        },
+        {
+          "name": "Souche – modèle non entraîné",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/souches/predict",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type_production\": \"Poulet de chair\",\n  \"biosecurite_score\": 8.0,\n  \"taux_mortalite\": 2.5,\n  \"temperature_moyenne\": 28,\n  \"humidite\": 55,\n  \"budget\": 50000\n}"
+            },
+            "description": "Doit retourner une erreur explicite si le modèle n'est pas encore entraîné."
+          }
+        },
+        {
+          "name": "Train Oracle – sans credentials",
+          "request": {
+            "method": "POST",
+            "url": "http://localhost:8000/api/v1/analyses/train-from-oracle",
+            "description": "Simule un appel sans .env configuré. Doit retourner 400."
+          }
+        }
+      ]
+    }
+
+  ]
+}

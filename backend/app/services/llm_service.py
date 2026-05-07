@@ -1,11 +1,8 @@
 """
-LLM Service – Provider interchangeable : Claude / Mistral / OpenAI.
-
-Utilise l'API Anthropic en priorité (config LLM_PROVIDER=claude).
-Fallback automatique si la clé est absente.
+LLM Service – Claude / Mistral / OpenAI / Gemini
+mistralai >= 2.x  →  client.chat.complete_async()
 """
 from __future__ import annotations
-
 import logging
 from abc import ABC, abstractmethod
 
@@ -53,6 +50,7 @@ class AbstractLLM(ABC):
     def provider(self) -> str: ...
 
 
+# ── Claude ────────────────────────────────────────────────────────────────────
 class ClaudeLLM(AbstractLLM):
     def __init__(self, api_key: str, model: str = "claude-sonnet-4-20250514"):
         import anthropic
@@ -74,6 +72,7 @@ class ClaudeLLM(AbstractLLM):
         return resp.content[0].text
 
 
+# ── Mistral (v2.x) ────────────────────────────────────────────────────────────
 class MistralLLM(AbstractLLM):
     def __init__(self, api_key: str, model: str = "mistral-large-latest"):
         try:
@@ -82,7 +81,7 @@ class MistralLLM(AbstractLLM):
             self._model = model
             self._available = True
         except ImportError:
-            log.warning("Mistral not available, will use fallback")
+            log.warning("mistralai non installé")
             self._available = False
 
     @property
@@ -91,20 +90,22 @@ class MistralLLM(AbstractLLM):
 
     async def generate(self, user_message: str, context: str) -> str:
         if not self._available:
-            raise RuntimeError("Mistral not installed")
-        #from mistralai.models import ChatMessage
+            raise RuntimeError("mistralai non installé : pip install mistralai")
         full_user = f"Contexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
-        resp = self._client.chat(
+        # mistralai >= 2.x  →  chat.complete_async
+        resp = await self._client.chat.complete_async(
             model=self._model,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": full_user},
+                {"role": "user",   "content": full_user},
             ],
         )
         return resp.choices[0].message.content
 
+
+# ── Gemini ────────────────────────────────────────────────────────────────────
 class GenaiLLM(AbstractLLM):
-    def __init__(self, api_key: str, model: str = "gemini-3-flash-preview"):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
         from google import genai
         self._client = genai.Client(api_key=api_key)
         self._model = model
@@ -114,15 +115,15 @@ class GenaiLLM(AbstractLLM):
         return f"Gemini ({self._model})"
 
     async def generate(self, user_message: str, context: str) -> str:
-        full_user = f"Contexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
-
+        full_user = f"{SYSTEM_PROMPT}\n\nContexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
         response = self._client.models.generate_content(
             model=self._model,
-            contents=full_user
+            contents=full_user,
         )
-
         return response.text
 
+
+# ── OpenAI ────────────────────────────────────────────────────────────────────
 class OpenAILLM(AbstractLLM):
     def __init__(self, api_key: str, model: str = "gpt-4o"):
         from openai import AsyncOpenAI
@@ -139,27 +140,32 @@ class OpenAILLM(AbstractLLM):
             model=self._model,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": full_user},
+                {"role": "user",   "content": full_user},
             ],
             max_tokens=1500,
         )
         return resp.choices[0].message.content
 
 
+# ── Factory ───────────────────────────────────────────────────────────────────
 def create_llm(provider: str, settings) -> AbstractLLM:
-    """Factory LLM – choisit le provider selon la config."""
-    if provider == "claude" and settings.ANTHROPIC_API_KEY:
+    if provider == "claude"  and settings.ANTHROPIC_API_KEY:
         return ClaudeLLM(settings.ANTHROPIC_API_KEY)
     if provider == "mistral" and settings.MISTRAL_API_KEY:
         return MistralLLM(settings.MISTRAL_API_KEY)
-    if provider == "openai" and settings.OPENAI_API_KEY:
+    if provider == "openai"  and settings.OPENAI_API_KEY:
         return OpenAILLM(settings.OPENAI_API_KEY)
-    if provider == "genai" and settings.GENAI_API_KEY:
+    if provider == "genai"   and settings.GENAI_API_KEY:
         return GenaiLLM(settings.GENAI_API_KEY)
     # Fallback automatique
     if settings.ANTHROPIC_API_KEY:
-        log.warning("Fallback sur Claude (provider '%s' indisponible)", provider)
+        log.warning("Fallback Claude (provider '%s' indisponible)", provider)
         return ClaudeLLM(settings.ANTHROPIC_API_KEY)
     if settings.MISTRAL_API_KEY:
         return MistralLLM(settings.MISTRAL_API_KEY)
-    raise RuntimeError("Aucune clé API LLM configurée. Définir ANTHROPIC_API_KEY ou MISTRAL_API_KEY.")
+    if settings.GENAI_API_KEY:
+        return GenaiLLM(settings.GENAI_API_KEY)
+    raise RuntimeError(
+        "Aucune clé API LLM configurée. "
+        "Définir ANTHROPIC_API_KEY, MISTRAL_API_KEY ou GENAI_API_KEY dans .env"
+    )

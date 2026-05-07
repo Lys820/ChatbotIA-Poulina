@@ -6,6 +6,8 @@ pandas
 numpy
 scikit-learn
 mistralai
+mistral
+anthropic
 openai
 google-genai
 python-dotenv

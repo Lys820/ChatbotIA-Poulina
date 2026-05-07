@@ -1,215 +1,261 @@
 #!/usr/bin/env python
 """
-TEST QUICK – Lance TOUT en 10 secondes
-Crée CSV de test → Upload → Chat test
-
+TEST QUICK POULINA – Test complet de l'API
 Tape : python test_quick.py
 """
-import pandas as pd
 import asyncio
 import httpx
 import json
 
+BASE = "http://localhost:8000/api/v1"
+TIMEOUT = 60
 
-def create_test_csv():
-    """Crée les CSV de test."""
-    analyses_data = {
-        "id_centre": [1, 2, 3, 4, 5],
-        "ville": ["Tunis", "Sfax", "Sfax", "Sousse", "Tunis"],
-        "region": ["Tunisie", "Sfax", "Sfax", "Sousse", "Tunisie"],
-        "type_production": ["Poulet de chair", "Œuf", "Poulet de chair", "Dinde", "Œuf"],
-        "meilleure_souche": ["Cobb 500", "Lohmann", "Ross 708", "BUT Big6", "Lohmann"],
-        "biosecurite_score": [8.5, 7.2, 9.0, 6.8, 8.0],
-        "taux_mortalite": [2.1, 1.8, 2.5, 3.2, 1.5],
-        "fertilite_visee": [92, 88, 90, 85, 90],
-        "conforme": [1, 1, 0, 1, 1],
-        "historique_maladie": ["Coccidiose", "Salmonelle", "Newcastle", "Mycoplasme", "Rien"],
-        "temperature_moyenne": [28, 30, 29, 27, 28],
-        "humidite": [55, 50, 52, 60, 58],
-        "capacite": [5000, 3000, 8000, 2500, 4000],
-        "surface_m2": [500, 300, 800, 250, 400],
-        "experience_equipe": [5, 3, 8, 2, 6],
-        "distance_labo": [15, 8, 10, 20, 12],
-        "budget": [50000, 30000, 80000, 25000, 45000],
-        "saison": ["Été", "Printemps", "Été", "Hiver", "Automne"],
-        "demande_marche": ["Élevé", "Moyen", "Élevé", "Bas", "Moyen"],
-        "cout_aliment": [5.2, 4.8, 5.5, 6.0, 5.0],
-    }
-    df_analyses = pd.DataFrame(analyses_data)
-    df_analyses.to_csv("test_analyses.csv", index=False)
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
-    labos_data = {
-        "id_labo": [101, 102, 103, 104, 105],
-        "nom_laboratoire": ["Lab Tunis Central", "Lab Sfax Elite", "Lab Sousse Pro", "Lab Ariana Tech", "Lab Sfax Plus"],
-        "type_laboratoire": ["Privé agréé", "Privé", "Public", "Privé agréé", "Privé"],
-        "ville": ["Tunis", "Sfax", "Sousse", "Ariana", "Sfax"],
-        "region": ["Tunis", "Sfax", "Sousse", "Tunis", "Sfax"],
-        "specialites_principales": ["Virologie, Immunologie", "Bactériologie, PCR", "Virologie", "Sérologie, PCR", "Bactériologie"],
-        "maladies_avicoles_traitees": ["Newcastle, Gumboro", "Salmonelle, E.coli", "Newcastle", "Salmonelle, Newcastle", "Salmonelle, Mycoplasme"],
-        "taux_reussite_pct": [98, 95, 92, 97, 93],
-        "note_satisfaction": [4.8, 4.5, 4.2, 4.7, 4.3],
-        "cout_analyse_moyen_tnd": [150, 120, 100, 160, 110],
-        "cout_urgence_tnd": [300, 250, 200, 320, 220],
-        "delai_standard_jours": [3, 2, 4, 3, 2],
-        "delai_urgence_heures": [12, 8, 24, 10, 12],
-        "accepte_urgence": [1, 1, 0, 1, 1],
-        "certifie_iso": [1, 0, 0, 1, 0],
-        "equipement_pcr": [1, 1, 0, 1, 1],
-        "equipement_elisa": [1, 1, 1, 1, 1],
-        "equipement_sequencage": [1, 0, 0, 1, 0],
-        "score_global": [9.2, 8.5, 7.8, 9.0, 8.2],
-        "capacite_journaliere_analyses": [20, 15, 10, 18, 12],
-        "charge_actuelle_pct": [60, 75, 45, 55, 70],
-        "slots_disponibles_semaine": [8, 5, 12, 10, 6],
-        "delai_prochain_rdv_jours": [1, 2, 5, 1, 3],
-        "annees_experience_labo": [12, 8, 5, 10, 7],
-        "nb_analyses_avicoles": [2000, 1500, 800, 1800, 1200],
-        "distance_moyenne_centres_km": [5, 2, 15, 8, 3],
-        "actif": [1, 1, 1, 1, 1],
-        "tier_labo": ["Excellent", "Bon", "Passable", "Excellent", "Bon"],
-    }
-    df_labos = pd.DataFrame(labos_data)
-    df_labos.to_csv("test_labos.csv", index=False)
-    print("✓ CSV de test créés")
+def header(title: str):
+    print(f"\n{'='*70}")
+    print(f"  {title}")
+    print('='*70)
+
+def ok(msg):  print(f"  ✓ {msg}")
+def err(msg): print(f"  ❌ {msg}")
+
+def show(data, keys):
+    for k in keys:
+        val = data.get(k, "N/A")
+        if isinstance(val, float): val = round(val, 3)
+        print(f"     {k}: {val}")
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+
+async def test_health(client):
+    header("1. HEALTH CHECK")
+    r = await client.get(f"{BASE}/health")
+    d = r.json()
+    if r.status_code == 200:
+        ok(f"status={d['status']}  provider={d.get('llm_provider')}  embedding={d.get('embedding')}")
+    else:
+        err(f"HTTP {r.status_code}")
+    return r.status_code == 200
 
 
-async def test():
-    """Teste l'API."""
-    BASE = "http://localhost:8000/api/v1"
+async def test_train_oracle(client):
+    header("2. ENTRAÎNEMENT DEPUIS ORACLE")
+    print("  (peut prendre quelques secondes...)")
+    try:
+        r = await client.post(f"{BASE}/analyses/train-from-oracle")
+        d = r.json()
+        if r.status_code == 200:
+            ok(f"status={d['status']}")
+            ok(f"analyses indexées : {d['analyses']['docs']} docs  [{d['analyses']['embedder']}]")
+            ok(f"labos indexés     : {d['labos']['docs']} docs")
+            ok(f"souche model      : {d['model_status']['souche'].get('model')}  acc={d['model_status']['souche'].get('accuracy', 0):.3f}")
+            ok(f"labo model        : {d['model_status']['labo'].get('model')}  acc={d['model_status']['labo'].get('accuracy', 0):.3f}")
+            ok(f"entraîné à        : {d.get('trained_at')}")
+            return True
+        else:
+            err(f"HTTP {r.status_code} – {d.get('detail', d)}")
+            return False
+    except Exception as e:
+        err(f"Exception: {e}")
+        return False
 
-    async with httpx.AsyncClient(timeout=30) as client:
-        print("\n" + "=" * 70)
-        print("1. HEALTH CHECK")
-        print("=" * 70)
+
+async def test_status(client):
+    header("3. STATUS DÉTAILLÉ")
+    r = await client.get(f"{BASE}/status")
+    d = r.json()
+    if r.status_code == 200:
+        ok(f"rag_ready={d['rag_ready']}  ml_ready={d['ml_ready']}")
+        ok(f"souche model : {d['ml_models']['souche']['model']}  acc={d['ml_models']['souche'].get('accuracy',0):.3f}")
+        ok(f"labo model   : {d['ml_models']['labo']['model']}  acc={d['ml_models']['labo'].get('accuracy',0):.3f}")
+    else:
+        err(f"HTTP {r.status_code}")
+
+
+async def test_chat_simple(client):
+    header("4. CHAT – Souche par ville")
+    r = await client.post(f"{BASE}/chat", json={
+        "question": "Quelle est la meilleure souche pour un élevage poulet chair à Bizerte ?"
+    })
+    d = r.json()
+    if r.status_code == 200:
+        ok(f"model : {d['model_used']}")
+        ok(f"temps : {d['execution_time_ms']} ms")
+        ok(f"analyses récupérées : {len(d['retrieved_analyses'])}")
+        print(f"\n  RÉPONSE :\n  {d['answer'][:400]}...")
+    else:
+        err(f"HTTP {r.status_code} – {d}")
+
+
+async def test_chat_maladie(client):
+    header("5. CHAT – Alerte maladie critique")
+    r = await client.post(f"{BASE}/chat", json={
+        "question": "Y a-t-il des centres atteints de Salmonelle ou Newcastle ? Quels centres sont à risque ?"
+    })
+    d = r.json()
+    if r.status_code == 200:
+        ok(f"model : {d['model_used']}")
+        print(f"\n  RÉPONSE :\n  {d['answer'][:400]}...")
+    else:
+        err(f"HTTP {r.status_code}")
+
+
+async def test_chat_labo(client):
+    header("6. CHAT – Recommandation laboratoire urgent")
+    r = await client.post(f"{BASE}/chat", json={
+        "question": "Quel est le meilleur laboratoire disponible en urgence pour une analyse Salmonelle à Sfax ?"
+    })
+    d = r.json()
+    if r.status_code == 200:
+        ok(f"labos récupérés : {len(d['retrieved_labos'])}")
+        ok(f"model : {d['model_used']}")
+        print(f"\n  RÉPONSE :\n  {d['answer'][:400]}...")
+    else:
+        err(f"HTTP {r.status_code}")
+
+
+async def test_chat_ml(client):
+    header("7. CHAT – Avec prédiction ML souche")
+    r = await client.post(f"{BASE}/chat", json={
+        "question": "Quelle souche recommandes-tu pour ce profil ?",
+        "predict_souche": {
+            "type_production": "Poulet de chair",
+            "biosecurite_score": 9.0,
+            "taux_mortalite": 2.0,
+            "temperature_moyenne": 28,
+            "humidite": 55,
+            "fertilite_visee": 94,
+            "capacite": 15000,
+            "surface_m2": 800,
+            "experience_equipe": 8,
+            "distance_labo": 10,
+            "budget": 80000,
+            "saison": "Ete",
+            "demande_marche": "Élevé",
+            "cout_aliment": 5.2
+        }
+    })
+    d = r.json()
+    if r.status_code == 200:
+        pred = d.get("souche_prediction")
+        if pred:
+            ok(f"Prédiction ML : {pred['souche']}  ({pred['confiance_pct']}%)")
+            ok(f"Alternatives  : {pred.get('alternatives', [])}")
+            ok(f"Modèle        : {pred['model']}")
+        else:
+            print("  ⚠️  Pas de prédiction ML (modèle non entraîné ?)")
+        print(f"\n  RÉPONSE :\n  {d['answer'][:300]}...")
+    else:
+        err(f"HTTP {r.status_code}")
+
+
+async def test_chat_hors_sujet(client):
+    header("8. CHAT – Hors sujet (doit refuser)")
+    r = await client.post(f"{BASE}/chat", json={
+        "question": "Quelle est la capitale de la France ?"
+    })
+    d = r.json()
+    if r.status_code == 200:
+        answer = d["answer"]
+        if "hors" in answer.lower() or "domaine" in answer.lower():
+            ok(f"Refus correct : {answer[:120]}")
+        else:
+            print(f"  ⚠️  Réponse inattendue : {answer[:120]}")
+    else:
+        err(f"HTTP {r.status_code}")
+
+
+async def test_souche_predict(client):
+    header("9. SOUCHE PREDICT – Direct (sans chat)")
+    cas = [
+        ("Poulet de chair", 9.0, 2.0, 28, 55, 80000, "Ete"),
+        ("Oeuf",            8.0, 1.5, 26, 60, 50000, "Hiver"),
+        ("Dinde",           7.0, 4.0, 25, 58, 35000, "Automne"),
+    ]
+    for prod, bio, mort, temp, hum, budget, saison in cas:
+        r = await client.post(f"{BASE}/souches/predict", json={
+            "type_production": prod,
+            "biosecurite_score": bio,
+            "taux_mortalite": mort,
+            "temperature_moyenne": temp,
+            "humidite": hum,
+            "fertilite_visee": 92,
+            "capacite": 12000,
+            "surface_m2": 600,
+            "experience_equipe": 5,
+            "distance_labo": 15,
+            "budget": budget,
+            "saison": saison,
+            "demande_marche": "Élevé",
+            "cout_aliment": 5.2
+        })
+        d = r.json()
+        if r.status_code == 200 and "souche" in d:
+            ok(f"{prod:<20} → {d['souche']:<18} ({d['confiance_pct']}%)  [{d['model']}]")
+        else:
+            err(f"{prod} → {d.get('error', d)}")
+
+
+async def test_labos(client):
+    header("10. LABOS RECOMMEND")
+    cas = [
+        ("Tous",          {}),
+        ("Urgence",       {"urgence": "true"}),
+        ("Tunis urgence", {"urgence": "true", "ville": "Tunis"}),
+        ("Sfax",          {"ville": "Sfax"}),
+    ]
+    for label, params in cas:
+        r = await client.get(f"{BASE}/labos/recommend", params=params)
+        d = r.json()
+        if r.status_code == 200:
+            labos = d.get("labos", [])
+            if labos:
+                top = labos[0]
+                ok(f"{label:<18} → {top.get('nom_laboratoire','?')} | score={top.get('score_global','?')} | tier={top.get('tier_labo','?')}")
+            else:
+                print(f"  ⚠️  {label}: aucun labo retourné")
+        else:
+            err(f"{label} → HTTP {r.status_code}")
+
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+async def main():
+    print("""
+╔════════════════════════════════════════════════════════════════════════════╗
+║              POULINA – TEST QUICK (API complète)                           ║
+╚════════════════════════════════════════════════════════════════════════════╝
+""")
+
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+
+        # Vérifie que le serveur tourne
         try:
-            r = await client.get(f"{BASE}/health")
-            print(f"   Status: {r.status_code}")
-            print(f"   {json.dumps(r.json(), indent=2)}")
-        except Exception as e:
-            print(f"   ❌ Erreur: {e}")
-            print(f"   Assure-toi que le serveur tourne: python main.py")
+            await client.get(f"{BASE}/health")
+        except Exception:
+            print("❌ Serveur inaccessible. Lance d'abord : python main.py")
             return
 
-        print("\n" + "=" * 70)
-        print("2. UPLOAD CSV")
-        print("=" * 70)
-        try:
-            with open("test_analyses.csv", "rb") as f1, open("test_labos.csv", "rb") as f2:
-                files = {
-                    "file_analyses": ("test_analyses.csv", f1),
-                    "file_labos": ("test_labos.csv", f2),
-                }
-                r = await client.post(f"{BASE}/analyses/upload", files=files)
-            print(f"   Status: {r.status_code}")
-            data = r.json()
-            print(f"   ✓ Analyses: {data['analyses']['docs']} docs")
-            print(f"   ✓ Labos: {data['labos']['docs']} docs")
-            print(f"   ✓ Souche model: {data['model_status']['souche'].get('model', 'N/A')}")
-            print(f"   ✓ Souche accuracy: {data['model_status']['souche'].get('accuracy', 0):.3f}")
-        except Exception as e:
-            print(f"   ❌ Erreur: {e}")
-            return
+        ok_train = await test_health(client)
+        ok_train = await test_train_oracle(client)
 
-        print("\n" + "=" * 70)
-        print("3. CHAT - Question simple")
-        print("=" * 70)
-        try:
-            r = await client.post(
-                f"{BASE}/chat",
-                json={"question": "Quelle souche pour un élevage poulet chair à Tunis ?"}
-            )
-            print(f"   Status: {r.status_code}")
-            data = r.json()
-            print(f"   ✓ Réponse: {data['answer'][:150]}...")
-            print(f"   ✓ Temps: {data['execution_time_ms']}ms")
-        except Exception as e:
-            print(f"   ❌ Erreur: {e}")
+        if not ok_train:
+            print("\n⚠️  Entraînement Oracle échoué – les tests chat/ML seront limités.")
 
-        print("\n" + "=" * 70)
-        print("4. CHAT - Avec prédiction ML")
-        print("=" * 70)
-        try:
-            r = await client.post(
-                f"{BASE}/chat",
-                json={
-                    "question": "Souche optimale haute perf ?",
-                    "predict_souche": {
-                        "type_production": "Poulet de chair",
-                        "biosecurite_score": 9.0,
-                        "taux_mortalite": 1.8,
-                        "temperature_moyenne": 28,
-                        "humidite": 55,
-                        "budget": 70000,
-                        "saison": "Été",
-                    }
-                }
-            )
-            print(f"   Status: {r.status_code}")
-            data = r.json()
-            if data.get("souche_prediction"):
-                pred = data["souche_prediction"]
-                print(f"   ✓ Prédiction: {pred['souche']} ({pred['confiance_pct']}%)")
-                print(f"   ✓ Model: {pred['model']}")
-            print(f"   ✓ Réponse: {data['answer'][:150]}...")
-        except Exception as e:
-            print(f"   ❌ Erreur: {e}")
+        await test_status(client)
+        await test_chat_simple(client)
+        await test_chat_maladie(client)
+        await test_chat_labo(client)
+        await test_chat_ml(client)
+        await test_chat_hors_sujet(client)
+        await test_souche_predict(client)
+        await test_labos(client)
 
-        print("\n" + "=" * 70)
-        print("5. STATUS API")
-        print("=" * 70)
-        try:
-            r = await client.get(f"{BASE}/status")
-            print(f"   Status: {r.status_code}")
-            data = r.json()
-            print(f"   ✓ RAG ready: {data['rag_ready']}")
-            print(f"   ✓ ML ready: {data['ml_ready']}")
-            print(f"   ✓ Souche model: {data['ml_models']['souche']['model']}")
-            print(f"   ✓ Souche accuracy: {data['ml_models']['souche']['accuracy']:.3f}")
-        except Exception as e:
-            print(f"   ❌ Erreur: {e}")
-
-        print("\n" + "=" * 70)
-        print("6. LABOS RECOMMEND")
-        print("=" * 70)
-        try:
-            r = await client.get(f"{BASE}/labos/recommend", params={"urgence": "true", "ville": "Sfax"})
-            print(f"   Status: {r.status_code}")
-            data = r.json()
-            if data.get("labos"):
-                labo = data["labos"][0]
-                print(f"   ✓ Top labo: {labo.get('nom_laboratoire', 'N/A')}")
-                print(f"   ✓ Score: {labo.get('score_global', 'N/A')}")
-        except Exception as e:
-            print(f"   ❌ Erreur: {e}")
-
-        print("\n" + "=" * 70)
-        print("7. SOUCHE PREDICT (direct)")
-        print("=" * 70)
-        try:
-            r = await client.post(
-                f"{BASE}/souches/predict",
-                json={
-                    "type_production": "Œuf",
-                    "biosecurite_score": 8.0,
-                    "taux_mortalite": 1.5,
-                    "temperature_moyenne": 28,
-                    "budget": 50000
-                }
-            )
-            print(f"   Status: {r.status_code}")
-            
-            data = r.json()
-            print(f"   ✓ Souche: {data['souche']} ({data['confiance_pct']}%)")
-            print(f"   ✓ Model: {data['model']}")
-        except Exception as e:
-            print(f"   ❌ Erreur: {e}")
-
-        print("\n" + "=" * 70)
-        print("✅ TOUS LES TESTS PASSÉS")
-        print("=" * 70)
+    print(f"\n{'='*70}")
+    print("  ✅ Tests terminés")
+    print(f"{'='*70}\n")
 
 
 if __name__ == "__main__":
-    print("\n🚀 POULINA API – TEST QUICK\n")
-    #create_test_csv()
-    asyncio.run(test())
+    asyncio.run(main())
