@@ -368,7 +368,7 @@ model_registry.train_from_dataframes(df_analyses, df_labos, ml_model_name="auto"
 
 1. ✅ Backend API complète
 2. ⏳ Integration Angular (composant chat)
-3. ⏳ Integration Oracle DB (au lieu de CSV)
+3. ⏳ Integration Oracle DB (au lieu de CSV) - en cours
 4. ⏳ WebSocket pour streaming de réponse
 5. ⏳ Caching Redis pour rag + ML predictions
 

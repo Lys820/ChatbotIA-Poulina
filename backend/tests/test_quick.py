@@ -193,10 +193,11 @@ async def test():
                     "biosecurite_score": 8.0,
                     "taux_mortalite": 1.5,
                     "temperature_moyenne": 28,
-                    "budget": 50000,
+                    "budget": 50000
                 }
             )
             print(f"   Status: {r.status_code}")
+            
             data = r.json()
             print(f"   ✓ Souche: {data['souche']} ({data['confiance_pct']}%)")
             print(f"   ✓ Model: {data['model']}")
@@ -210,5 +211,5 @@ async def test():
 
 if __name__ == "__main__":
     print("\n🚀 POULINA API – TEST QUICK\n")
-    create_test_csv()
+    #create_test_csv()
     asyncio.run(test())
