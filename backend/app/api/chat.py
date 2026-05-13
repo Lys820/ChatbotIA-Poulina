@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from app.core.config import get_settings
+from backend.app.core.config import get_settings
 from app.ml.model_factory import model_registry
 from app.services.rag_service import rag_service
 from app.services.llm_service import create_llm
