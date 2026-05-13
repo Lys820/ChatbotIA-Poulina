@@ -12,8 +12,8 @@ sys.path.insert(0, '..')  # remonte à la racine du backend
 from dotenv import load_dotenv
 load_dotenv('../.env')  # ajuste si ton .env est ailleurs
 
-from app.core.config import get_settings
-from app.services.database import get_db
+from backend.app.core.config import get_settings
+from backend.app.data.database import get_db
 
 settings = get_settings()
 print(f"DSN: {settings.ORACLE_DSN}")

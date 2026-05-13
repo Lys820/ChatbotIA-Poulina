@@ -8,7 +8,7 @@ import io
 
 from app.ml.model_factory import model_registry
 from app.services.rag_service import rag_service
-from app.core.config import get_settings
+from backend.app.core.config import get_settings
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -57,7 +57,7 @@ async def upload_analyses(
 @router.post("/analyses/train-from-oracle")
 async def train_from_oracle(settings=Depends(get_settings)):
     """Entraîne directement depuis Oracle DB."""
-    from app.services.database import get_db
+    from backend.app.data.database import get_db
 
     if not settings.ORACLE_DSN or not settings.ORACLE_USER:
         raise HTTPException(
