@@ -2,7 +2,7 @@
 Health check et status de l'API
 """
 from fastapi import APIRouter, Depends
-from backend.app.core.config import get_settings
+from app.core.config import get_settings
 from app.ml.model_factory import model_registry
 from app.services.rag_service import rag_service
 
