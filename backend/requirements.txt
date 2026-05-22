@@ -6,12 +6,13 @@ pandas
 numpy
 scikit-learn
 mistralai
-mistral
 anthropic
 openai
 google-genai
 python-dotenv
-oracledb
+
+# SQL Server Driver
+pyodbc
 
 # Optional ML
 xgboost
