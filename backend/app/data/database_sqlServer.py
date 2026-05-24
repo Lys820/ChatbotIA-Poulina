@@ -1,239 +1,128 @@
 """
-Database Service - Connexion SQL Server Poulina
-Remplace Oracle par pyodbc pour SQL Server
+Database Service pour SQL Server
 """
 import logging
-from typing import Tuple
-import pandas as pd
 import pyodbc
+import pandas as pd
 
 log = logging.getLogger(__name__)
 
 
-def _query_to_df(conn, query: str) -> pd.DataFrame:
-    """Execute une query et retourne un DataFrame"""
-    try:
-        df = pd.read_sql(query, conn)
-        return df
-    except Exception as e:
-        log.error(f"Query error: {e}")
-        return pd.DataFrame()
-
-
 class SQLServerDB:
-
-    def __init__(self, server: str, database: str, user: str, password: str):
+    def __init__(self, server: str, database: str, driver: str):
         self.server = server
         self.database = database
-        self.user = user
-        self.password = password
+        self.driver = driver
         self._conn = None
 
     def connect(self):
         try:
             connection_string = (
-                f'DRIVER={{ODBC Driver 17 for SQL Server}};'
-                f'SERVER={self.server};'
-                f'DATABASE={self.database};'
-                f'UID={self.user};'
-                f'PWD={self.password}'
+                f"DRIVER={{{self.driver}}};"
+                f"SERVER={self.server};"
+                f"DATABASE={self.database};"
+                f"Trusted_Connection=yes;"
+                f"TrustServerCertificate=yes;"
             )
             self._conn = pyodbc.connect(connection_string)
-            log.info("Connexion SQL Server etablie")
+            log.info("Connexion SQL Server OK")
             return True
         except Exception as e:
-            log.error(f"Erreur connexion SQL Server: {e}")
+            log.error(f"Erreur SQL Server: {e}")
             return False
 
     def get_analyses_data(self) -> pd.DataFrame:
         query = """
         SELECT
-            da.id_demande,
-            da.num_analyse,
-            ce.id_centre,
-            ce.nom_centre,
-            ce.gouvernorat AS ville,
-            ce.gouvernorat AS region,
-            ce.type_production,
+            d.id_demande,
+            d.num_analyse,
+            c.id_centre,
+            c.nom_centre,
+            c.gouvernorat as ville,
+            c.gouvernorat as region,
+            c.type_production,
             b.id_batiment,
             b.nom_batiment,
             s.id_souche,
-            s.nom_souche AS meilleure_souche,
-            s.fertilite_score AS fertilite_visee,
+            s.nom_souche as meilleure_souche,
+            s.fertilite_score as fertilite_visee,
             s.taux_mortalite,
             s.resistance_maladies,
-            ta.code_analyse AS type_analyse,
-            ta.libelle AS libelle_analyse,
-            da.type_echantillon,
-            da.date_prelevement,
-            da.date_analyse,
-            da.date_resultat,
-            da.priorite,
-            da.est_conforme AS conforme,
-            da.pourcentage_securite,
-            da.statut,
-            da.resultat_souche_detectee,
-            da.niveau_satisfaction,
-            lab.nom_labo,
-            lab.gouvernorat AS labo_gouvernorat,
-            (lant.prenom + ' ' + lant.nom) AS nom_laborantin,
-            lant.specialite AS specialite_laborantin,
-            p.nom_pays AS pays_provenance,
-            CASE
-                WHEN MONTH(da.date_prelevement) IN (6,7,8) THEN 'Ete'
-                WHEN MONTH(da.date_prelevement) IN (3,4,5) THEN 'Printemps'
-                WHEN MONTH(da.date_prelevement) IN (9,10,11) THEN 'Automne'
-                ELSE 'Hiver'
-            END AS saison,
-            b.capacite,
-            CAST(4.5 + RAND() * 2 AS DECIMAL(5,2)) AS cout_aliment,
-            CAST(20 + RAND() * 20 AS DECIMAL(5,1)) AS temperature_moyenne,
-            CAST(40 + RAND() * 30 AS INT) AS humidite,
-            CAST(85 + RAND() * 10 AS INT) AS biosecurite_score,
-            CAST(5 + RAND() * 25 AS INT) AS experience_equipe,
-            CAST(5 + RAND() * 25 AS INT) AS distance_labo,
-            CAST(30000 + RAND() * 70000 AS INT) AS budget,
-            COALESCE(hm_join.nom_maladie, 'Aucune') AS historique_maladie,
-            COALESCE(hm_join.est_critique, 0) AS maladie_critique
-        FROM dbo.demande_analyse da
-        LEFT JOIN dbo.centre_elevage ce ON da.id_centre = ce.id_centre
-        LEFT JOIN dbo.batiment b ON da.id_batiment = b.id_batiment
+            t.code_analyse as type_analyse,
+            t.libelle as libelle_analyse,
+            d.type_echantillon,
+            d.date_prelevement,
+            d.date_analyse,
+            d.date_resultat,
+            d.priorite,
+            d.est_conforme as conforme,
+            d.pourcentage_securite,
+            d.statut,
+            d.resultat_souche_detectee,
+            d.niveau_satisfaction
+        FROM dbo.demande_analyse d
+        LEFT JOIN dbo.centre_elevage c ON d.id_centre = c.id_centre
+        LEFT JOIN dbo.batiment b ON d.id_batiment = b.id_batiment
         LEFT JOIN dbo.souche s ON b.id_souche = s.id_souche
-        LEFT JOIN dbo.type_analyse ta ON da.id_type_analyse = ta.id_type_analyse
-        LEFT JOIN dbo.laboratoire lab ON da.id_labo = lab.id_labo
-        LEFT JOIN dbo.laborantin lant ON da.id_laborantin = lant.id_laborantin
-        LEFT JOIN dbo.pays p ON da.id_pays_provenance = p.id_pays
-        LEFT JOIN (
-            SELECT hm2.id_centre, m2.nom_maladie, m2.est_critique
-            FROM dbo.historique_maladie hm2
-            JOIN dbo.maladie m2 ON hm2.id_maladie = m2.id_maladie
-            WHERE hm2.id_historique IN (
-                SELECT MAX(h3.id_historique)
-                FROM dbo.historique_maladie h3
-                GROUP BY h3.id_centre
-            )
-        ) hm_join ON hm_join.id_centre = ce.id_centre
-        WHERE ce.actif = 1
-        ORDER BY da.date_analyse DESC
+        LEFT JOIN dbo.type_analyse t ON d.id_type_analyse = t.id_type_analyse
+        WHERE c.actif = 1
+        ORDER BY d.date_analyse DESC
         """
         try:
-            df = _query_to_df(self._conn, query)
-            log.info(f"Analyses chargees: {len(df)} lignes")
+            df = pd.read_sql(query, self._conn)
+            log.info(f"Analyses: {len(df)} lignes")
             return df
         except Exception as e:
-            log.error(f"Erreur get_analyses_data: {e}", exc_info=True)
+            log.error(f"Erreur get_analyses: {e}")
             return pd.DataFrame()
 
     def get_labos_data(self) -> pd.DataFrame:
         query = """
         SELECT
             l.id_labo,
-            l.nom_labo AS nom_laboratoire,
-            l.gouvernorat AS ville,
-            l.gouvernorat AS region,
+            l.nom_labo as nom_laboratoire,
+            l.gouvernorat as ville,
+            l.gouvernorat as region,
             l.latitude,
             l.longitude,
             l.telephone,
             l.email,
             l.actif,
-            COUNT(DISTINCT lant.id_laborantin) AS nb_laborantins,
-            COALESCE(ROUND(AVG(CAST(sl.taux_conformite AS FLOAT)), 1), 95) AS taux_reussite_pct,
-            COALESCE(SUM(sl.nb_analyses_effectuees), 0) AS nb_analyses_effectuees,
-            COALESCE(ROUND(AVG(CAST(sl.duree_moy_jours AS FLOAT)), 1), 3) AS delai_standard_jours,
+            COUNT(DISTINCT lab.id_laborantin) as nb_laborantins,
+            ISNULL(ROUND(AVG(s.taux_conformite), 1), 95) as taux_reussite_pct,
+            ISNULL(ROUND(AVG(s.duree_moy_jours), 1), 3) as delai_standard_jours,
             CASE
-                WHEN COALESCE(ROUND(AVG(CAST(sl.duree_moy_jours AS FLOAT)), 1), 3) <= 2 THEN 12
-                WHEN COALESCE(ROUND(AVG(CAST(sl.duree_moy_jours AS FLOAT)), 1), 3) <= 3 THEN 18
+                WHEN ISNULL(ROUND(AVG(s.duree_moy_jours), 1), 3) <= 2 THEN 12
+                WHEN ISNULL(ROUND(AVG(s.duree_moy_jours), 1), 3) <= 3 THEN 18
                 ELSE 24
-            END AS delai_urgence_heures,
-            1 AS accepte_urgence,
-            1 AS certifie_iso,
-            1 AS equipement_pcr,
-            1 AS equipement_elisa,
-            COALESCE(MAX(lant.annees_experience), 5) AS annees_experience_labo,
-            ROUND(8.0 + (COALESCE(ROUND(AVG(CAST(sl.taux_conformite AS FLOAT)), 1), 95) / 100.0) * 1.5, 1) AS score_global,
+            END as delai_urgence_heures,
+            1 as accepte_urgence,
+            1 as certifie_iso,
+            ROUND(8.0 + (ISNULL(ROUND(AVG(s.taux_conformite), 1), 95) / 100.0) * 1.5, 1) as score_global,
             CASE
-                WHEN ROUND(8.0 + (COALESCE(ROUND(AVG(CAST(sl.taux_conformite AS FLOAT)), 1), 95) / 100.0) * 1.5, 1) >= 9.0 THEN 'Excellent'
-                WHEN ROUND(8.0 + (COALESCE(ROUND(AVG(CAST(sl.taux_conformite AS FLOAT)), 1), 95) / 100.0) * 1.5, 1) >= 8.0 THEN 'Bon'
+                WHEN ROUND(8.0 + (ISNULL(ROUND(AVG(s.taux_conformite), 1), 95) / 100.0) * 1.5, 1) >= 9.0 THEN 'Excellent'
+                WHEN ROUND(8.0 + (ISNULL(ROUND(AVG(s.taux_conformite), 1), 95) / 100.0) * 1.5, 1) >= 8.0 THEN 'Bon'
                 ELSE 'Passable'
-            END AS tier_labo,
-            'Prive' AS type_laboratoire,
-            'PCR, Virologie, Bacteriologie' AS specialites_principales,
-            'Salmonelle, Newcastle, Gumboro' AS maladies_avicoles_traitees
+            END as tier_labo,
+            'Prive' as type_laboratoire,
+            'PCR, Virologie, Bacteriologie' as specialites_principales,
+            'Salmonelle, Newcastle, Gumboro' as maladies_avicoles_traitees
         FROM dbo.laboratoire l
-        LEFT JOIN dbo.laborantin lant ON l.id_labo = lant.id_labo
-        LEFT JOIN dbo.stat_laborantin sl ON lant.id_laborantin = sl.id_laborantin
+        LEFT JOIN dbo.laborantin lab ON l.id_labo = lab.id_labo
+        LEFT JOIN dbo.stat_laborantin s ON lab.id_laborantin = s.id_laborantin
         WHERE l.actif = 1
         GROUP BY l.id_labo, l.nom_labo, l.gouvernorat, l.latitude, l.longitude, l.telephone, l.email, l.actif
         ORDER BY score_global DESC
         """
         try:
-            df = _query_to_df(self._conn, query)
-            log.info(f"Labos charges: {len(df)} lignes")
+            df = pd.read_sql(query, self._conn)
+            log.info(f"Labos: {len(df)} lignes")
             return df
         except Exception as e:
-            log.error(f"Erreur get_labos_data: {e}", exc_info=True)
+            log.error(f"Erreur get_labos: {e}")
             return pd.DataFrame()
 
-    def get_maladies_critiques(self) -> pd.DataFrame:
-        query = """
-        SELECT
-            m.nom_maladie, m.type_agent, m.est_critique,
-            ce.nom_centre, ce.gouvernorat,
-            hm.date_detection, hm.est_resolu,
-            hm.centres_contamines_potentiels
-        FROM dbo.historique_maladie hm
-        JOIN dbo.maladie m ON hm.id_maladie = m.id_maladie
-        JOIN dbo.centre_elevage ce ON hm.id_centre = ce.id_centre
-        WHERE m.est_critique = 1 AND hm.est_resolu = 0
-        ORDER BY hm.date_detection DESC
-        """
-        try:
-            return _query_to_df(self._conn, query)
-        except Exception as e:
-            log.error(f"Erreur get_maladies_critiques: {e}")
-            return pd.DataFrame()
-
-    def get_centres(self, filters=None) -> pd.DataFrame:
-        query = "SELECT * FROM dbo.centre_elevage WHERE actif = 1"
-        
-        if filters:
-            if filters.gouvernorat:
-                query += f" AND gouvernorat = '{filters.gouvernorat}'"
-            if filters.type_production:
-                query += f" AND type_production = '{filters.type_production}'"
-        
-        query += " ORDER BY nom_centre"
-        return _query_to_df(self._conn, query)
-
-    def get_labos(self, filters=None) -> pd.DataFrame:
-        query = "SELECT * FROM dbo.laboratoire WHERE actif = 1"
-        
-        if filters:
-            if filters.gouvernorat:
-                query += f" AND gouvernorat = '{filters.gouvernorat}'"
-            if filters.accepte_urgence is not None:
-                query += f" AND accepte_urgence = {1 if filters.accepte_urgence else 0}"
-            if filters.certifie_iso is not None:
-                query += f" AND certifie_iso = {1 if filters.certifie_iso else 0}"
-        
-        query += " ORDER BY score_global DESC"
-        return _query_to_df(self._conn, query)
-
-    def get_souches(self, filters=None) -> pd.DataFrame:
-        query = "SELECT * FROM dbo.souche"
-        
-        if filters:
-            if filters.type_produit_final:
-                query += f" WHERE type_produit_final = '{filters.type_produit_final}'"
-            if filters.fertilite_min:
-                query += f" AND fertilite_score >= {filters.fertilite_min}"
-            if filters.taux_mortalite_max:
-                query += f" AND taux_mortalite <= {filters.taux_mortalite_max}"
-        
-        query += " ORDER BY fertilite_score DESC"
-        return _query_to_df(self._conn, query)
-
-    def get_all_data(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def get_all_data(self):
         if not self._conn:
             if not self.connect():
                 return pd.DataFrame(), pd.DataFrame()
@@ -245,13 +134,12 @@ class SQLServerDB:
     def close(self):
         if self._conn:
             self._conn.close()
-            log.info("Connexion SQL Server fermee")
+            log.info("Connexion SQL Server fermée")
 
 
-def get_db(settings) -> SQLServerDB:
+def get_db(settings):
     return SQLServerDB(
         server=settings.SQLSERVER_SERVER,
         database=settings.SQLSERVER_DATABASE,
-        user=settings.SQLSERVER_USER,
-        password=settings.SQLSERVER_PASSWORD,
+        driver=settings.SQLSERVER_DRIVER
     )

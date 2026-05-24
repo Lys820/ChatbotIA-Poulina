@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     SQLSERVER_DATABASE: str = ""
     Trusted_Connection: str = "yes"
     
+    
     # CSV Upload
     MAX_CSV_SIZE_MB: int = 50
 
