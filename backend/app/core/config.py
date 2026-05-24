@@ -9,34 +9,40 @@ from typing import Literal
 class Settings(BaseSettings):
     
     # LLM Provider
-    LLM_PROVIDER: Literal["claude", "mistral", "openai", "genai"] = ""
-
-    # ML Model
-    ML_MODEL: Literal["random_forest", "gradient_boosting", "xgboost", "auto"] = "auto"
-
-    # SQL Server Database
-    SQLSERVER_SERVER: str = ""
-    SQLSERVER_DATABASE: str = ""
-    Trusted_Connection: str = "yes"
-    
-    
-    # CSV Upload
-    MAX_CSV_SIZE_MB: int = 50
-
-    # RAG
-    TOP_K: int = 5
-    EMBEDDING_METHOD: Literal["tfidf", "bm25", "sentence_transformers"] = "tfidf"
-
-    # Cache
-    REDIS_URL: str = ""
-    CACHE_TTL_SECONDS: int = 3600
-
+    LLM_PROVIDER: str = ""
     # Security
     API_KEY_HEADER: str = "X-Poulina-Key"
     ANTHROPIC_API_KEY: str = ""
     MISTRAL_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     GENAI_API_KEY: str = ""
+
+    # ML Model
+    ML_MODEL: Literal["random_forest", "gradient_boosting", "xgboost", "auto"] = "auto"
+    
+    # RAG
+    TOP_K: int = 5
+    EMBEDDING_METHOD: Literal["tfidf", "bm25", "sentence_transformers"] = "tfidf"
+    
+    # SQL Server Database
+    SQLSERVER_SERVER: str = ""
+    SQLSERVER_DATABASE: str = ""
+    Trusted_Connection: str = "yes"
+    
+    # Redis
+    REDIS_URL: str = ""
+    CACHE_TTL_SECONDS: int = 3600
+    
+    # CSV Upload
+    MAX_CSV_SIZE_MB: int = 50
+
+    
+
+    # Cache
+    REDIS_URL: str = ""
+    CACHE_TTL_SECONDS: int = 3600
+
+    
 
     class Config:
         env_file = ".env"
@@ -46,3 +52,5 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
+
+
