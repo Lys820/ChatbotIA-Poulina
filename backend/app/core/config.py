@@ -25,27 +25,21 @@ class Settings(BaseSettings):
     EMBEDDING_METHOD: Literal["tfidf", "bm25", "sentence_transformers"] = "tfidf"
     
     # SQL Server Database
-    SQLSERVER_SERVER: str = ""
+    SQLSERVER_SERVER: str = r""
     SQLSERVER_DATABASE: str = ""
+    SQLSERVER_DRIVER: str = ""
     Trusted_Connection: str = "yes"
     
     # Redis
     REDIS_URL: str = ""
-    CACHE_TTL_SECONDS: int = 3600
+    CACHE_TTL_HOURS: int = 2
+    MEMORY_ENABLED: bool = True
     
     # CSV Upload
-    MAX_CSV_SIZE_MB: int = 50
-
-    
-
-    # Cache
-    REDIS_URL: str = ""
-    CACHE_TTL_SECONDS: int = 3600
-
-    
+    MAX_CSV_SIZE_MB: int = 50    
 
     class Config:
-        env_file = ".env"
+        env_file = "backend/.env"
         case_sensitive = False
 
 
