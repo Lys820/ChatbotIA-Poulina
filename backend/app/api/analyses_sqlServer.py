@@ -1,6 +1,6 @@
 """
-Analyses upload - Recharge CSV et entraîne ML à chaud
-Fonctionne avec SQL Server
+Analyses upload - Recharge CSV et entraine ML a chaud
+ADAPTE POUR SQL SERVER - pas Oracle
 """
 import logging
 from fastapi import APIRouter, UploadFile, Depends, HTTPException
@@ -10,7 +10,6 @@ import io
 from app.ml.model_factory import model_registry
 from app.services.rag_service import rag_service
 from app.core.config import get_settings
-from app.data.database import get_db
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -21,9 +20,6 @@ async def upload_analyses(
     file_analyses: UploadFile,
     file_labos: UploadFile,
 ):
-    """
-    Upload 2 CSV (analyses + labos) et réentraîne tout à chaud.
-    """
     try:
         settings = get_settings()
 
@@ -44,12 +40,12 @@ async def upload_analyses(
 
         return {
             "status": "trained",
-            "message": "CSV charge, ML entraîne, RAG indexe",
+            "message": "CSV charge, ML entraine, RAG indexe",
             "analyses": rag_results["analyses"],
             "labos": rag_results["labos"],
             "model_status": {
                 "souche": ml_results.get("souche", {}),
-                "labo": ml_results.get("labo", {}),
+                "labo":   ml_results.get("labo", {}),
             },
             "trained_at": model_registry._trained_at,
         }
@@ -61,27 +57,34 @@ async def upload_analyses(
 
 @router.post("/analyses/train-from-sqlserver")
 async def train_from_sqlserver(settings=Depends(get_settings)):
-    """
-    Entraîne directement depuis SQL Server DB.
-    """
+    """Entraine directement depuis SQL Server DB."""
+    from app.data.database import get_sqlserver_db
+
+    # Verifier configuration
     if not settings.SQLSERVER_SERVER or not settings.SQLSERVER_DATABASE:
         raise HTTPException(
             status_code=400,
-            detail="SQL Server non configure. Definir SQLSERVER_SERVER, SQLSERVER_DATABASE, SQLSERVER_USER, SQLSERVER_PASSWORD dans .env"
+            detail="SQL Server non configure. Definir SQLSERVER_SERVER + SQLSERVER_DATABASE dans .env"
         )
 
-    db = get_db(settings)
-    log.info("Connexion SQL Server...")
+    db = get_sqlserver_db(settings)
+    log.info(f"Connexion SQL Server: {settings.SQLSERVER_SERVER}\\{settings.SQLSERVER_DATABASE}")
 
     if not db.connect():
         raise HTTPException(
             status_code=500,
-            detail="Impossible de se connecter a SQL Server. Verifie les credentials dans .env"
+            detail="Impossible de se connecter a SQL Server. Verifie les credentials et si SQL Server est actif."
         )
 
     try:
         log.info("Recuperation des donnees SQL Server...")
         df_analyses, df_labos = db.get_all_data()
+    except Exception as e:
+        log.error(f"Erreur SQL Server: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur lecture SQL Server: {str(e)}"
+        )
     finally:
         db.close()
 
@@ -90,29 +93,36 @@ async def train_from_sqlserver(settings=Depends(get_settings)):
     if df_analyses.empty:
         raise HTTPException(
             status_code=400,
-            detail=f"get_analyses_data() a retourne 0 lignes. Verifie les logs serveur pour l'erreur SQL."
+            detail="get_analyses_data() a retourne 0 lignes. Verifie les logs serveur pour l'erreur SQL."
         )
     if df_labos.empty:
         raise HTTPException(
             status_code=400,
-            detail=f"get_labos_data() a retourne 0 lignes. Verifie les logs serveur pour l'erreur SQL."
+            detail="get_labos_data() a retourne 0 lignes. Verifie les logs serveur pour l'erreur SQL."
         )
 
-    ml_results = model_registry.train_from_dataframes(
-        df_analyses, df_labos, ml_model_name=settings.ML_MODEL,
-    )
-    rag_results = rag_service.build_from_dataframes(
-        df_analyses, df_labos, embedding_method=settings.EMBEDDING_METHOD,
-    )
+    try:
+        ml_results  = model_registry.train_from_dataframes(
+            df_analyses, df_labos, ml_model_name=settings.ML_MODEL,
+        )
+        rag_results = rag_service.build_from_dataframes(
+            df_analyses, df_labos, embedding_method=settings.EMBEDDING_METHOD,
+        )
+    except Exception as e:
+        log.error(f"ML/RAG training error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erreur entrainement ML/RAG: {str(e)}"
+        )
 
     return {
         "status": "trained_from_sqlserver",
         "message": f"SQL Server: {len(df_analyses)} analyses + {len(df_labos)} labos",
         "analyses": rag_results["analyses"],
-        "labos": rag_results["labos"],
+        "labos":    rag_results["labos"],
         "model_status": {
             "souche": ml_results.get("souche", {}),
-            "labo": ml_results.get("labo", {}),
+            "labo":   ml_results.get("labo", {}),
         },
         "trained_at": model_registry._trained_at,
     }

@@ -25,3 +25,6 @@ pytest
 pytest-asyncio
 httpx
 python-multipart
+
+#memoire
+redis>=4.5.0

@@ -1,7 +1,7 @@
 """
 Souches endpoint – Prédiction directe (sans chat)
 """
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from app.ml.model_factory import model_registry
 
@@ -30,11 +30,11 @@ async def predict_souche(req: SouchePredictRequest):
     """Prédiction directe de souche via Random Forest (sans chat)."""
     try:
         if not model_registry._souche_model:
-            return {"error": "Modèle souche non entraîné. Upload CSV d'abord."}, 400
+            raise HTTPException(status_code=400, detail="Modèle souche non entraîné. Upload CSV d'abord.")
 
         result = model_registry.predict_souche(req.dict())
         return result
     except Exception as e:
         import logging
         logging.error(f"Souche predict error: {e}", exc_info=True)
-        return {"error": str(e), "type": type(e).__name__}, 500
+        raise HTTPException(status_code=500, detail=str(e))
