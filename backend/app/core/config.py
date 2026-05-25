@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     MISTRAL_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     GENAI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash-lite"
 
     # ML Model
     ML_MODEL: Literal["random_forest", "gradient_boosting", "xgboost", "auto"] = "auto"
@@ -36,7 +37,10 @@ class Settings(BaseSettings):
     MEMORY_ENABLED: bool = True
     
     # CSV Upload
-    MAX_CSV_SIZE_MB: int = 50    
+    MAX_CSV_SIZE_MB: int = 50  
+    
+    JWT_SECRET_KEY: str = ""
+    JWT_ALGORITHM: str = "HS256"  
 
     class Config:
         env_file = "backend/.env"

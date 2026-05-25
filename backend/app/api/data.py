@@ -5,7 +5,7 @@ Retourne données brutes JSON
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.config import get_settings
-from app.data.database import get_db
+from app.data.sqlserver_db import get_db
 from app.data.models import (
     CentreFilter, LaboratoireFilter, SoucheFilter,
     CentreResponse, LaboratoireResponse, SoucheResponse,

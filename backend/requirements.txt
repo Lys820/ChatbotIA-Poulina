@@ -28,3 +28,5 @@ python-multipart
 
 #memoire
 redis>=4.5.0
+fastapi-sessions
+python-jose[cryptography]

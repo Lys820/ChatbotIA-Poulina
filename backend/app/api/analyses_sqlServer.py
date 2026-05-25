@@ -58,7 +58,7 @@ async def upload_analyses(
 @router.post("/analyses/train-from-sqlserver")
 async def train_from_sqlserver(settings=Depends(get_settings)):
     """Entraine directement depuis SQL Server DB."""
-    from app.data.database import get_sqlserver_db
+    from app.data.sqlserver_db import get_sqlserver_db
 
     # Verifier configuration
     if not settings.SQLSERVER_SERVER or not settings.SQLSERVER_DATABASE:

@@ -6,7 +6,7 @@ import logging
 import time
 from fastapi import APIRouter, Depends, HTTPException
 from app.core.config import get_settings
-from app.data.database import get_db
+from app.data.sqlserver_db import get_db
 from app.data.models import (
     RecommandationSoucheRequest,
     RecommandationSoucheResponse,

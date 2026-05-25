@@ -155,8 +155,8 @@ def create_llm(provider: str, settings) -> AbstractLLM:
         return MistralLLM(settings.MISTRAL_API_KEY)
     if provider == "openai"  and settings.OPENAI_API_KEY:
         return OpenAILLM(settings.OPENAI_API_KEY)
-    if provider == "genai"   and settings.GENAI_API_KEY:
-        return GenaiLLM(settings.GENAI_API_KEY)
+    if provider == "gemini"  and settings.GENAI_API_KEY:
+        return GenaiLLM(settings.GENAI_API_KEY, settings.GEMINI_MODEL)
     # Fallback automatique
     if settings.ANTHROPIC_API_KEY:
         log.warning("Fallback Claude (provider '%s' indisponible)", provider)
@@ -164,7 +164,7 @@ def create_llm(provider: str, settings) -> AbstractLLM:
     if settings.MISTRAL_API_KEY:
         return MistralLLM(settings.MISTRAL_API_KEY)
     if settings.GENAI_API_KEY:
-        return GenaiLLM(settings.GENAI_API_KEY)
+        return GenaiLLM(settings.GENAI_API_KEY, settings.GEMINI_MODEL)
     raise RuntimeError(
         "Aucune clé API LLM configurée. "
         "Définir ANTHROPIC_API_KEY, MISTRAL_API_KEY ou GENAI_API_KEY dans .env"
