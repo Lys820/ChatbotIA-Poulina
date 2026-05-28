@@ -114,10 +114,21 @@ async def chat(req: ChatRequest, settings=Depends(get_settings)):
         context_parts.append(history_context)
         context_parts.append("")
 
+    #priorité à la prédiction ML si disponible et fiable
     if pred_souche:
-        context_parts.append("=== PRÉDICTION ML ===")
-        context_parts.append(f"Souche: {pred_souche['souche']} ({pred_souche['confiance_pct']}%)")
-        context_parts.append("")
+        confiance = pred_souche['confiance_pct']
+        if confiance >= 70:
+            # ML fiable → priorité ML
+            context_parts.insert(0, f"INSTRUCTION : Recommande {pred_souche['souche']} (ML confiance {confiance}%)")
+        elif confiance >= 50:
+            # ML incertain → présente les deux
+            context_parts.insert(0, (
+                f"ML suggère {pred_souche['souche']} ({confiance}%) mais avec incertitude. "
+                f"Croise avec les données RAG pour confirmer."
+            ))
+        else:
+            # ML peu fiable → RAG seul
+            log.warning(f"ML confiance trop faible ({confiance}%), RAG prioritaire")
 
     if chunks_a:
         context_parts.append("=== DONNÉES ANALYSES ===")
@@ -178,7 +189,7 @@ async def chat(req: ChatRequest, settings=Depends(get_settings)):
     4. Mistral/Claude génère la réponse
     """
     t0 = time.time()
-
+    
     if not rag_service.is_ready:
         return ChatResponse(
             question=req.question,
