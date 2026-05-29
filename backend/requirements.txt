@@ -13,6 +13,8 @@ python-dotenv
 
 # SQL Server Driver
 pyodbc
+PyJWT
+
 
 # Optional ML
 xgboost

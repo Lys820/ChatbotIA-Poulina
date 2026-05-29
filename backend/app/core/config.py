@@ -1,20 +1,21 @@
 """
 Configuration centralisée - Variables d'environnement pour SQL Server
 """
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 from typing import Literal
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(env_file=".env", case_sensitive=False)
     
     # LLM Provider
     LLM_PROVIDER: str = ""
+    
     # Security
-    API_KEY_HEADER: str = "X-Poulina-Key"
     ANTHROPIC_API_KEY: str = ""
     MISTRAL_API_KEY: str = ""
-    OPENAI_API_KEY: str = ""
     GENAI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash-lite"
 
@@ -40,7 +41,9 @@ class Settings(BaseSettings):
     MAX_CSV_SIZE_MB: int = 50  
     
     JWT_SECRET_KEY: str = ""
-    JWT_ALGORITHM: str = "HS256"  
+    JWT_ALGORITHM: str = "HS256" 
+    JWT_EXPIRE_MINUTES: int = ""
+
 
     class Config:
         env_file = "backend/.env"

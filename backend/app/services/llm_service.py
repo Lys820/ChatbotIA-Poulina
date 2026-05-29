@@ -169,3 +169,25 @@ def create_llm(provider: str, settings) -> AbstractLLM:
         "Aucune clé API LLM configurée. "
         "Définir ANTHROPIC_API_KEY, MISTRAL_API_KEY ou GENAI_API_KEY dans .env"
     )
+    
+async def generate_with_history(
+        self,
+        user_message: str,
+        context: str,
+        history: list[dict]
+    ) -> str:
+    """Génération avec historique conversationnel."""
+    full_user = f"Contexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
+
+    messages = []
+    for msg in history[-10:]:  # 10 derniers messages maximum
+        messages.append({"role": msg["role"], "content": msg["content"]})
+    messages.append({"role": "user", "content": full_user})
+
+    resp = await self._client.messages.create(
+        model=self._model,
+        max_tokens=1500,
+        system=SYSTEM_PROMPT,
+        messages=messages,
+    )
+    return resp.content[0].text
