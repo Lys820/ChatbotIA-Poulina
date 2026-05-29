@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 class ChatRequest(BaseModel):
     question: str = Field(..., description="Question utilisateur", min_length=3, max_length=500)
-    session_id: Optional[str] = Field(None, description="ID session pour mémoire")
+    #session_id: Optional[str] = Field(None, description="ID session pour mémoire")
     predict_souche: Optional[dict] = Field(None, description="Features souche optionnelles")
     filtre_centre: Optional[str] = None
     filtre_ville: Optional[str] = None
@@ -57,13 +57,7 @@ async def chat(req: ChatRequest, settings=Depends(get_settings)):
     # 1. Gestion session
     memory_service = get_memory_service()
     
-    if not req.session_id:
-        # Créer nouvelle session
-        session_id = memory_service.create_session()
-        log.info(f"Nouvelle session: {session_id}")
-    else:
-        session_id = req.session_id
-        log.info(f"Session existante: {session_id}")
+    session_id = f"user:{user['user_id']}"  # Dans un vrai système, associer à l'utilisateur authentifié
 
     # 2. Récupère historique si mémoire activée
     history_context = ""
