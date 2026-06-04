@@ -8,7 +8,7 @@ from typing import Literal
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file="backend/.env",
         case_sensitive=False,
         extra="ignore",
     )
