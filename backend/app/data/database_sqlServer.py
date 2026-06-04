@@ -398,7 +398,6 @@ def get_db(settings) -> SQLServerDB:
     return SQLServerDB(
         server=settings.SQLSERVER_SERVER,
         database=settings.SQLSERVER_DATABASE,
-        user=settings.SQLSERVER_USER,
-        password=settings.SQLSERVER_PASSWORD,
+        Trusted_Connection=settings.Trusted_Connection,
         driver=getattr(settings, "SQLSERVER_DRIVER", "ODBC Driver 17 for SQL Server"),
     )

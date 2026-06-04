@@ -14,8 +14,6 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = ""
     
     # Security
-    ANTHROPIC_API_KEY: str = ""
-    MISTRAL_API_KEY: str = ""
     GENAI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash-lite"
 

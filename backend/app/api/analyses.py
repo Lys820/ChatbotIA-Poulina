@@ -92,7 +92,7 @@ async def train_from_sqlserver(settings=Depends(get_settings)):
     Entraîne directement depuis SQL Server.
     """
     try:
-        from app.data.sqlserver_db import get_sqlserver_db
+        from app.data.database_sqlserver import get_sqlserver_db
     except ImportError as e:
         raise HTTPException(status_code=500, detail=f"Import error: {e}")
     # =========================
