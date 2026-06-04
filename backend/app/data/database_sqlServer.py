@@ -1,7 +1,7 @@
 """
 Database Service — SQL Server
-Remplace la version Oracle.
 Utilise pyodbc pour la connexion SQL Server.
+Supporte authentification Windows (Trusted) ou SQL Server (user/password).
 """
 from __future__ import annotations
 
@@ -15,50 +15,60 @@ log = logging.getLogger(__name__)
 
 
 def _query_to_df(conn: pyodbc.Connection, query: str) -> pd.DataFrame:
-    """Execute une requête et retourne un DataFrame."""
     cursor = conn.cursor()
     try:
         cursor.execute(query)
         columns = [desc[0].lower() for desc in cursor.description]
         rows = cursor.fetchall()
-        clean_rows = []
-        for row in rows:
-            clean_rows.append(list(row))
-        return pd.DataFrame(clean_rows, columns=columns)
+        return pd.DataFrame([list(r) for r in rows], columns=columns)
     finally:
         cursor.close()
 
 
 class SQLServerDB:
 
-    def __init__(self, server: str, database: str, user: str, password: str, driver: str = "ODBC Driver 17 for SQL Server"):
+    def __init__(
+        self,
+        server: str,
+        database: str,
+        user: str = "",
+        password: str = "",
+        driver: str = "ODBC Driver 17 for SQL Server",
+        trusted: str = "no",
+    ):
         self.server = server
         self.database = database
         self.user = user
         self.password = password
         self.driver = driver
+        self.trusted = trusted
         self._conn: Optional[pyodbc.Connection] = None
 
     def connect(self) -> bool:
         try:
-            conn_str = (
-                f"DRIVER={{{self.driver}}};"
-                f"SERVER={self.server};"
-                f"DATABASE={self.database};"
-                f"UID={self.user};"
-                f"PWD={self.password};"
-                f"TrustServerCertificate=yes;"
-            )
+            if self.trusted.lower() == "yes":
+                conn_str = (
+                    f"DRIVER={{{self.driver}}};"
+                    f"SERVER={self.server};"
+                    f"DATABASE={self.database};"
+                    f"Trusted_Connection=yes;"
+                    f"TrustServerCertificate=yes;"
+                )
+            else:
+                conn_str = (
+                    f"DRIVER={{{self.driver}}};"
+                    f"SERVER={self.server};"
+                    f"DATABASE={self.database};"
+                    f"UID={self.user};"
+                    f"PWD={self.password};"
+                    f"TrustServerCertificate=yes;"
+                )
             self._conn = pyodbc.connect(conn_str)
             log.info("Connexion SQL Server etablie sur %s/%s", self.server, self.database)
             return True
         except Exception as e:
             log.error("Erreur connexion SQL Server: %s", e)
             return False
-
-    # ------------------------------------------------------------------
-    # Requetes principales
-    # ------------------------------------------------------------------
 
     def get_analyses_data(self) -> pd.DataFrame:
         query = """
@@ -195,40 +205,15 @@ class SQLServerDB:
             log.error("Erreur get_labos_data: %s", e, exc_info=True)
             return pd.DataFrame()
 
-    def get_maladies_critiques(self) -> pd.DataFrame:
-        query = """
-        SELECT
-            m.nom_maladie,
-            m.type_agent,
-            m.est_critique,
-            ce.nom_centre,
-            ce.gouvernorat,
-            hm.date_detection,
-            hm.est_resolu,
-            hm.centres_contamines_potentiels
-        FROM historique_maladie hm
-        JOIN maladie m          ON hm.id_maladie = m.id_maladie
-        JOIN centre_elevage ce  ON hm.id_centre  = ce.id_centre
-        WHERE m.est_critique = 1
-          AND hm.est_resolu  = 0
-        ORDER BY hm.date_detection DESC
-        """
-        try:
-            return _query_to_df(self._conn, query)
-        except Exception as e:
-            log.error("Erreur get_maladies_critiques: %s", e)
-            return pd.DataFrame()
-
-    def get_centres(self, filters: dict = None) -> pd.DataFrame:
+    def get_centres(self, filters=None) -> pd.DataFrame:
         where_clauses = ["ce.actif = 1"]
         if filters:
-            if filters.get("gouvernorat"):
-                where_clauses.append(f"ce.gouvernorat = '{filters['gouvernorat']}'")
-            if filters.get("type_production"):
-                where_clauses.append(f"ce.type_production = '{filters['type_production']}'")
-            if filters.get("id_marque"):
-                where_clauses.append(f"ce.id_marque = {filters['id_marque']}")
-
+            if hasattr(filters, "gouvernorat") and filters.gouvernorat:
+                where_clauses.append(f"ce.gouvernorat = '{filters.gouvernorat}'")
+            if hasattr(filters, "type_production") and filters.type_production:
+                where_clauses.append(f"ce.type_production = '{filters.type_production}'")
+            if hasattr(filters, "id_marque") and filters.id_marque:
+                where_clauses.append(f"ce.id_marque = {filters.id_marque}")
         where_sql = " AND ".join(where_clauses)
         query = f"""
         SELECT
@@ -248,16 +233,15 @@ class SQLServerDB:
             log.error("Erreur get_centres: %s", e)
             return pd.DataFrame()
 
-    def get_souches(self, filters: dict = None) -> pd.DataFrame:
+    def get_souches(self, filters=None) -> pd.DataFrame:
         where_clauses = ["1=1"]
         if filters:
-            if filters.get("type_produit_final"):
-                where_clauses.append(f"s.type_produit_final = '{filters['type_produit_final']}'")
-            if filters.get("fertilite_min") is not None:
-                where_clauses.append(f"s.fertilite_score >= {filters['fertilite_min']}")
-            if filters.get("taux_mortalite_max") is not None:
-                where_clauses.append(f"s.taux_mortalite <= {filters['taux_mortalite_max']}")
-
+            if hasattr(filters, "type_produit_final") and filters.type_produit_final:
+                where_clauses.append(f"s.type_produit_final = '{filters.type_produit_final}'")
+            if hasattr(filters, "fertilite_min") and filters.fertilite_min is not None:
+                where_clauses.append(f"s.fertilite_score >= {filters.fertilite_min}")
+            if hasattr(filters, "taux_mortalite_max") and filters.taux_mortalite_max is not None:
+                where_clauses.append(f"s.taux_mortalite <= {filters.taux_mortalite_max}")
         where_sql = " AND ".join(where_clauses)
         query = f"""
         SELECT
@@ -276,6 +260,35 @@ class SQLServerDB:
             log.error("Erreur get_souches: %s", e)
             return pd.DataFrame()
 
+    def get_labos(self, filters=None) -> pd.DataFrame:
+        where_clauses = ["l.actif = 1"]
+        if filters:
+            if hasattr(filters, "gouvernorat") and filters.gouvernorat:
+                where_clauses.append(f"l.gouvernorat = '{filters.gouvernorat}'")
+            if hasattr(filters, "accepte_urgence") and filters.accepte_urgence is not None:
+                val = 1 if filters.accepte_urgence else 0
+                where_clauses.append(f"l.accepte_urgence = {val}")
+        where_sql = " AND ".join(where_clauses)
+        query = f"""
+        SELECT l.id_labo, l.nom_labo AS nom_laboratoire, l.gouvernorat AS ville,
+               l.gouvernorat AS region, l.latitude, l.longitude,
+               l.telephone, l.email, l.actif,
+               3 AS delai_standard_jours, 18 AS delai_urgence_heures,
+               1 AS accepte_urgence, 1 AS certifie_iso,
+               9.0 AS score_global, 'Bon' AS tier_labo,
+               95.0 AS taux_reussite_pct,
+               'PCR, Virologie' AS specialites_principales,
+               'Salmonelle, Newcastle' AS maladies_avicoles_traitees
+        FROM laboratoire l
+        WHERE {where_sql}
+        ORDER BY l.nom_labo
+        """
+        try:
+            return _query_to_df(self._conn, query)
+        except Exception as e:
+            log.error("Erreur get_labos: %s", e)
+            return pd.DataFrame()
+
     def get_utilisateur_par_email(self, email: str) -> Optional[dict]:
         query = """
         SELECT
@@ -287,9 +300,9 @@ class SQLServerDB:
             r.nom_role,
             STRING_AGG(p.code, ',') AS permissions
         FROM utilisateur u
-        JOIN role r                 ON u.id_role    = r.id_role
-        LEFT JOIN role_permission rp ON r.id_role   = rp.id_role
-        LEFT JOIN permission p      ON rp.id_permission = p.id_permission
+        JOIN role r                  ON u.id_role    = r.id_role
+        LEFT JOIN role_permission rp ON r.id_role    = rp.id_role
+        LEFT JOIN permission p       ON rp.id_permission = p.id_permission
         WHERE u.email = ?
           AND u.actif = 1
         GROUP BY
@@ -382,6 +395,18 @@ class SQLServerDB:
         finally:
             cursor.close()
 
+    def query_one(self, query: str) -> Optional[dict]:
+        cursor = self._conn.cursor()
+        try:
+            cursor.execute(query)
+            row = cursor.fetchone()
+            if not row:
+                return None
+            cols = [desc[0].lower() for desc in cursor.description]
+            return dict(zip(cols, row))
+        finally:
+            cursor.close()
+
     def get_all_data(self) -> Tuple[pd.DataFrame, pd.DataFrame]:
         if not self._conn:
             if not self.connect():
@@ -391,6 +416,7 @@ class SQLServerDB:
     def close(self) -> None:
         if self._conn:
             self._conn.close()
+            self._conn = None
             log.info("Connexion SQL Server fermee")
 
 
@@ -398,6 +424,8 @@ def get_db(settings) -> SQLServerDB:
     return SQLServerDB(
         server=settings.SQLSERVER_SERVER,
         database=settings.SQLSERVER_DATABASE,
-        Trusted_Connection=settings.Trusted_Connection,
+        user=getattr(settings, "SQLSERVER_USER", ""),
+        password=getattr(settings, "SQLSERVER_PASSWORD", ""),
         driver=getattr(settings, "SQLSERVER_DRIVER", "ODBC Driver 17 for SQL Server"),
+        trusted=getattr(settings, "SQLSERVER_TRUSTED", "no"),
     )

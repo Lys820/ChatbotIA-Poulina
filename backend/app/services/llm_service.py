@@ -1,6 +1,6 @@
 """
 LLM Service – Claude / Mistral / OpenAI / Gemini
-mistralai >= 2.x  →  client.chat.complete_async()
+Tous les providers supportent generate_with_history.
 """
 from __future__ import annotations
 import logging
@@ -45,9 +45,47 @@ class AbstractLLM(ABC):
     @abstractmethod
     async def generate(self, user_message: str, context: str) -> str: ...
 
+    @abstractmethod
+    async def generate_with_history(
+        self, user_message: str, context: str, history: list[dict]
+    ) -> str: ...
+
     @property
     @abstractmethod
     def provider(self) -> str: ...
+
+
+# ── Gemini (provider par défaut) ─────────────────────────────────────────────
+class GenaiLLM(AbstractLLM):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash-lite"):
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        self._genai = genai
+        self._model_name = model
+
+    @property
+    def provider(self) -> str:
+        return f"Gemini ({self._model_name})"
+
+    async def generate(self, user_message: str, context: str) -> str:
+        return await self.generate_with_history(user_message, context, [])
+
+    async def generate_with_history(
+        self, user_message: str, context: str, history: list[dict]
+    ) -> str:
+        import asyncio
+        full_prompt = f"{SYSTEM_PROMPT}\n\nContexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
+        model = self._genai.GenerativeModel(self._model_name)
+
+        # Historique au format Gemini
+        chat_history = []
+        for msg in history[-10:]:
+            role = "user" if msg["role"] == "user" else "model"
+            chat_history.append({"role": role, "parts": [msg["content"]]})
+
+        chat = model.start_chat(history=chat_history)
+        response = await asyncio.to_thread(chat.send_message, full_prompt)
+        return response.text
 
 
 # ── Claude ────────────────────────────────────────────────────────────────────
@@ -62,12 +100,22 @@ class ClaudeLLM(AbstractLLM):
         return f"Claude ({self._model})"
 
     async def generate(self, user_message: str, context: str) -> str:
+        return await self.generate_with_history(user_message, context, [])
+
+    async def generate_with_history(
+        self, user_message: str, context: str, history: list[dict]
+    ) -> str:
         full_user = f"Contexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
+        messages = []
+        for msg in history[-10:]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": full_user})
+
         resp = await self._client.messages.create(
             model=self._model,
             max_tokens=1500,
             system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": full_user}],
+            messages=messages,
         )
         return resp.content[0].text
 
@@ -89,38 +137,20 @@ class MistralLLM(AbstractLLM):
         return f"Mistral ({self._model})" if self._available else "Mistral (unavailable)"
 
     async def generate(self, user_message: str, context: str) -> str:
+        return await self.generate_with_history(user_message, context, [])
+
+    async def generate_with_history(
+        self, user_message: str, context: str, history: list[dict]
+    ) -> str:
         if not self._available:
             raise RuntimeError("mistralai non installé : pip install mistralai")
         full_user = f"Contexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
-        # mistralai >= 2.x  →  chat.complete_async
-        resp = await self._client.chat.complete_async(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": full_user},
-            ],
-        )
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        for msg in history[-10:]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": full_user})
+        resp = await self._client.chat.complete_async(model=self._model, messages=messages)
         return resp.choices[0].message.content
-
-
-# ── Gemini ────────────────────────────────────────────────────────────────────
-class GenaiLLM(AbstractLLM):
-    def __init__(self, api_key: str, model: str = "gemini-2.5-flash"):
-        from google import genai
-        self._client = genai.Client(api_key=api_key)
-        self._model = model
-
-    @property
-    def provider(self) -> str:
-        return f"Gemini ({self._model})"
-
-    async def generate(self, user_message: str, context: str) -> str:
-        full_user = f"{SYSTEM_PROMPT}\n\nContexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
-        response = self._client.models.generate_content(
-            model=self._model,
-            contents=full_user,
-        )
-        return response.text
 
 
 # ── OpenAI ────────────────────────────────────────────────────────────────────
@@ -135,59 +165,44 @@ class OpenAILLM(AbstractLLM):
         return f"OpenAI ({self._model})"
 
     async def generate(self, user_message: str, context: str) -> str:
+        return await self.generate_with_history(user_message, context, [])
+
+    async def generate_with_history(
+        self, user_message: str, context: str, history: list[dict]
+    ) -> str:
         full_user = f"Contexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        for msg in history[-10:]:
+            messages.append({"role": msg["role"], "content": msg["content"]})
+        messages.append({"role": "user", "content": full_user})
         resp = await self._client.chat.completions.create(
-            model=self._model,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user",   "content": full_user},
-            ],
-            max_tokens=1500,
+            model=self._model, messages=messages, max_tokens=1500
         )
         return resp.choices[0].message.content
 
 
 # ── Factory ───────────────────────────────────────────────────────────────────
 def create_llm(provider: str, settings) -> AbstractLLM:
-    if provider == "claude"  and settings.ANTHROPIC_API_KEY:
+    p = provider.lower()
+    if p == "gemini" and getattr(settings, "GENAI_API_KEY", ""):
+        return GenaiLLM(settings.GENAI_API_KEY, settings.GEMINI_MODEL)
+    if p == "claude" and getattr(settings, "ANTHROPIC_API_KEY", ""):
         return ClaudeLLM(settings.ANTHROPIC_API_KEY)
-    if provider == "mistral" and settings.MISTRAL_API_KEY:
+    if p == "mistral" and getattr(settings, "MISTRAL_API_KEY", ""):
         return MistralLLM(settings.MISTRAL_API_KEY)
-    if provider == "openai"  and settings.OPENAI_API_KEY:
+    if p == "openai" and getattr(settings, "OPENAI_API_KEY", ""):
         return OpenAILLM(settings.OPENAI_API_KEY)
-    if provider == "gemini"  and settings.GENAI_API_KEY:
-        return GenaiLLM(settings.GENAI_API_KEY, settings.GEMINI_MODEL)
     # Fallback automatique
-    if settings.ANTHROPIC_API_KEY:
-        log.warning("Fallback Claude (provider '%s' indisponible)", provider)
-        return ClaudeLLM(settings.ANTHROPIC_API_KEY)
-    if settings.MISTRAL_API_KEY:
-        return MistralLLM(settings.MISTRAL_API_KEY)
-    if settings.GENAI_API_KEY:
+    if getattr(settings, "GENAI_API_KEY", ""):
+        log.warning("Fallback Gemini (provider '%s' indisponible)", provider)
         return GenaiLLM(settings.GENAI_API_KEY, settings.GEMINI_MODEL)
+    if getattr(settings, "ANTHROPIC_API_KEY", ""):
+        return ClaudeLLM(settings.ANTHROPIC_API_KEY)
+    if getattr(settings, "MISTRAL_API_KEY", ""):
+        return MistralLLM(settings.MISTRAL_API_KEY)
+    if getattr(settings, "OPENAI_API_KEY", ""):
+        return OpenAILLM(settings.OPENAI_API_KEY)
     raise RuntimeError(
         "Aucune clé API LLM configurée. "
-        "Définir ANTHROPIC_API_KEY, MISTRAL_API_KEY ou GENAI_API_KEY dans .env"
+        "Définir GENAI_API_KEY, ANTHROPIC_API_KEY, MISTRAL_API_KEY ou OPENAI_API_KEY dans .env"
     )
-    
-async def generate_with_history(
-        self,
-        user_message: str,
-        context: str,
-        history: list[dict]
-    ) -> str:
-    """Génération avec historique conversationnel."""
-    full_user = f"Contexte (données Poulina) :\n{context}\n\n---\nQuestion : {user_message}"
-
-    messages = []
-    for msg in history[-10:]:  # 10 derniers messages maximum
-        messages.append({"role": msg["role"], "content": msg["content"]})
-    messages.append({"role": "user", "content": full_user})
-
-    resp = await self._client.messages.create(
-        model=self._model,
-        max_tokens=1500,
-        system=SYSTEM_PROMPT,
-        messages=messages,
-    )
-    return resp.content[0].text
